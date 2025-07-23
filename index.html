@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Login to Gemini Chatbot</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-auth-compat.js"></script>
+  </head>
+  <body>
+    <h2>Sign in</h2>
+    <button id="google-login">Sign in with Google</button>
+    <button id="ms-login">Sign in with Microsoft</button>
+    <script>
+      // Your Firebase config
+      const firebaseConfig = {
+        apiKey: "AIzaSyDiFf4dX-7jq5Tx2ARE3YKbHQll27NmqFU",
+        authDomain: "geminichatbot-5c1dc.firebaseapp.com",
+        projectId: "geminichatbot-5c1dc",
+        storageBucket: "geminichatbot-5c1dc.appspot.com",
+        messagingSenderId: "937836455170",
+        appId: "1:937836455170:web:e3d1e499783060a7090e1b",
+        measurementId: "G-7D37Y720F4",
+      };
+
+      // Initialize Firebase
+      firebase.initializeApp(firebaseConfig);
+      const auth = firebase.auth();
+
+      // Google
+      document.getElementById("google-login").onclick = function () {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider).then(handleLogin).catch(console.error);
+      };
+
+      // Microsoft
+      document.getElementById("ms-login").onclick = function () {
+        const provider = new firebase.auth.OAuthProvider("microsoft.com");
+        auth.signInWithPopup(provider).then(handleLogin).catch(console.error);
+      };
+
+      function handleLogin(result) {
+        result.user.getIdToken().then(function (idToken) {
+          // Wait 1 second before redirecting to let nbf become valid
+          setTimeout(() => {
+            window.location.href =
+              "https://chatbotaz.streamlit.app/?token=" + idToken;
+          }, 1000);
+        });
+      }
+    </script>
+  </body>
+</html>
