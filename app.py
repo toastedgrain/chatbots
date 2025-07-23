@@ -285,7 +285,8 @@ if st.session_state.mode == "login":
             preauthorized=config['preauthorized']
         )
 
-        name, authentication_status, username = authenticator.login(location="main", form_name="Login")
+        name, authentication_status, username = authenticator.login("Login", "main")
+
 
         if authentication_status:
             st.success(f"Logged in as {name}!")
@@ -446,11 +447,5 @@ if st.session_state.mode == "login":
 
         st.markdown("<div style='height:15vh'></div>", unsafe_allow_html=True)
         st.stop()
-
-    elif authentication_status is False:
-        st.error("Email not authorized.")
-    elif authentication_status is None:
-        st.warning("Please log in to continue.")
-    st.stop()
 
 st.markdown("<div style='height:15vh'></div>", unsafe_allow_html=True)
