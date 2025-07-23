@@ -8,10 +8,9 @@ from firebase_admin import credentials, auth
 from google.cloud import firestore
 import uuid
 import json
-import streamlit_authenticator as stauth
+import streamlit_authenticator
 import yaml
 from yaml.loader import SafeLoader
-
 
 # ========== SETTINGS ==========
 OAUTH_PROVIDER = "google"  # "google" or "microsoft"
@@ -266,7 +265,7 @@ if st.session_state.mode == "login":
             elif new_username in config['credentials']['usernames']:
                 st.error("Username already exists!")
             else:
-                hashed_pw = stauth.Hasher().generate([new_password])[0]
+                hashed_pw = streamlit_authenticator.Hasher().generate([new_password])[0]
                 config['credentials']['usernames'][new_username] = {
                     'email': new_email,
                     'name': new_username,
@@ -277,7 +276,7 @@ if st.session_state.mode == "login":
                 st.balloons()
 
     if menu == "Login":
-        authenticator = stauth.Authenticate(
+        authenticator = streamlit_authenticator.Authenticate(
             credentials=config['credentials'],
             cookie_name=config['cookie']['name'],
             key=config['cookie']['key'],
