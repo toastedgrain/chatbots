@@ -283,7 +283,7 @@ if st.session_state.mode == "login":
             config['cookie']['expiry_days'],
         )
 
-        name, authentication_status, username = authenticator.login("test", "main") #ERROR too
+        name, authentication_status, username = authenticator.login("main", "main") #ERROR too
 
 
         if authentication_status:
