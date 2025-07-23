@@ -3,3 +3,4 @@ requests
 python-dotenv
 firebase-admin
 streamlit-authenticator
+streamlit-oauth
