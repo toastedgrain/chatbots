@@ -4,3 +4,4 @@ python-dotenv
 firebase-admin
 streamlit-authenticator
 streamlit-oauth
+streamlit_auth0_component 

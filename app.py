@@ -8,7 +8,9 @@ from firebase_admin import credentials, auth
 from google.cloud import firestore
 import uuid
 import json
-from streamlit_oauth import login_button
+import streamlit_authenticator
+import yaml
+from yaml.loader import SafeLoader
 
 # ========== SETTINGS ==========
 OAUTH_PROVIDER = "google"  # "google" or "microsoft"
@@ -76,6 +78,22 @@ def verify_firebase_token(token):
 
 def delete_chat(user_id, chat_id):
     db.collection('users').document(user_id).collection('chats').document(chat_id).delete()
+
+def load_config():
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, 'r') as file:
+            config = yaml.load(file, Loader=SafeLoader)
+    else:
+        config = {
+            'credentials': {'usernames': {}},
+            'cookie': {'expiry_days': 3, 'key': 'cookie_key', 'name': 'chatbot_cookie'},
+            'preauthorized': {'emails': []}
+        }
+    return config
+
+def save_config(config):
+    with open(CONFIG_PATH, 'w') as file:
+        yaml.dump(config, file)
 
 # ========== PARSE TOKEN FROM URL ==========
 query_params = st.query_params
@@ -231,22 +249,46 @@ if st.session_state.mode == "guest":
 
 if st.session_state.mode == "login":
 
-    login_method = st.radio("Choose login provider", ["Google", "Microsoft"])
-    provider = "google" if login_method == "Google" else "microsoft"
-    client_id = st.secrets["GOOGLE_CLIENT_ID"] if provider == "google" else st.secrets["MS_CLIENT_ID"]
-    client_secret = st.secrets["GOOGLE_CLIENT_SECRET"] if provider == "google" else st.secrets["MS_CLIENT_SECRET"]
+    config = load_config()
 
-    user_info = login_button(
-        provider=provider,
-        client_id=client_id,
-        client_secret=client_secret,
-        key="user_oauth",
-        redirect_uri=None,
-        scopes=["openid", "email", "profile"]
-    )
-    if user_info:
-        st.success(f"Logged in as {user_info['email']}")
-        user_id = user_info["email"]  # Use email as user_id for Firestore
+    menu = st.radio("Choose action", ["Login", "Sign Up"])
+
+    if menu == "Sign Up":
+        st.header("Create a New Account")
+        new_username = st.text_input("Choose a username")
+        new_password = st.text_input("Choose a password", type="password")
+        new_email = st.text_input("Your email (optional)")
+
+        if st.button("Sign Up"):
+            if not new_username or not new_password:
+                st.warning("Username and password required!")
+            elif new_username in config['credentials']['usernames']:
+                st.error("Username already exists!")
+            else:
+                hashed_pw = streamlit_authenticator.Hasher([new_password]).generate()
+                config['credentials']['usernames'][new_username] = {
+                    'email': new_email,
+                    'name': new_username,
+                    'password': hashed_pw
+                }
+                save_config(config)
+                st.success("Account created! You can now log in.")
+                st.balloons()
+
+    if menu == "Login":
+        authenticator = streamlit_authenticator.Authenticate(
+            config['credentials'],
+            config['cookie']['name'],
+            config['cookie']['key'],
+            config['cookie']['expiry_days'],
+        )
+
+        name, authentication_status, username = authenticator.login("test", "main") #ERROR too
+
+
+        if authentication_status:
+            st.success(f"Logged in as {name}!")
+            user_id = username or name
 
         # ========== FIRESTORE INIT ==========
         if not hasattr(st, 'firestore_db'):
