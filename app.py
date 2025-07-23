@@ -265,7 +265,7 @@ if st.session_state.mode == "login":
             elif new_username in config['credentials']['usernames']:
                 st.error("Username already exists!")
             else:
-                hashed_pw = streamlit_authenticator.Hasher().generate([new_password])[0]
+                hashed_pw = streamlit_authenticator.Hasher().generate([new_password])[0] #this error
                 config['credentials']['usernames'][new_username] = {
                     'email': new_email,
                     'name': new_username,
@@ -277,14 +277,14 @@ if st.session_state.mode == "login":
 
     if menu == "Login":
         authenticator = streamlit_authenticator.Authenticate(
-            credentials=config['credentials'],
-            cookie_name=config['cookie']['name'],
-            key=config['cookie']['key'],
-            cookie_expiry_days=config['cookie']['expiry_days'],
-            preauthorized=config['preauthorized']
+            config['credentials'],
+            config['cookie']['name'],
+            config['cookie']['key'],
+            config['cookie']['expiry_days'],
+            config['preauthorized']
         )
 
-        name, authentication_status, username = authenticator.login("main", "Login")
+        name, authentication_status, username = authenticator.login("main", "Login") #ERROR too
 
 
         if authentication_status:

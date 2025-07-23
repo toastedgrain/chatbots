@@ -1,0 +1,12 @@
+credentials:
+  usernames:
+    testuser:
+      name: testuser
+      email: testuser@example.com
+      password: "$2b$12$WuwsI4pG5QjN84p2IYpD2OtzdfB5exMCzvq9aXXhvzFqf0bGk7noy" # bcrypt hash
+cookie:
+  expiry_days: 3
+  key: chatbot_cookie_key # any random string, keep secret!
+  name: chatbot_cookie_name # any name, e.g., "chatbot_cookie"
+preauthorized:
+  emails: []
