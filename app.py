@@ -283,7 +283,7 @@ if st.session_state.mode == "login":
             config['cookie']['expiry_days'],
         )
 
-        login_result = authenticator.login('Login', 'main')
+        login_result = authenticator.login('main', 'main')
         if login_result is not None:
             name, authentication_status, username = login_result
             if authentication_status:
