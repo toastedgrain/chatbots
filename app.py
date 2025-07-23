@@ -442,6 +442,10 @@ if st.session_state.mode == "login":
                 save_chat(user_id, chat_id, gemini_title, st.session_state.chat_history)
                 st.rerun()
         else:
+            if st.button("⬅️ Back to Home"):
+                st.session_state.mode = None
+                st.session_state.chat_history = []
+                st.rerun()
             st.warning("Please log in.")
 
         st.markdown("<div style='height:15vh'></div>", unsafe_allow_html=True)
