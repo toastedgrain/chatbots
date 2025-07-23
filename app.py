@@ -243,12 +243,7 @@ if st.session_state.mode == "login":
     )
 
     # Display login form
-    name, authentication_status, username = authenticator.login(
-    location="main",  # or "sidebar"
-    form_name="Login"
-)
-
-
+    name, authentication_status, username = authenticator.login("main", "Login")
 
     if authentication_status:
         st.success(f"Logged in as {username or name}!")
