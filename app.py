@@ -244,7 +244,7 @@ if st.session_state.mode == "login":
 
     # Display login form
     st.write("About to login")
-    name, authentication_status, username = authenticator.login("Login", "main")
+    name, authentication_status, username = authenticator.login("Login", location="main")
     st.write("status:", authentication_status)
 
 
