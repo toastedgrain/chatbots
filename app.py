@@ -266,7 +266,7 @@ if st.session_state.mode == "login":
             elif new_username in config['credentials']['usernames']:
                 st.error("Username already exists!")
             else:
-                hashed_pw = stauth.Hasher([new_password]).generate()[0]
+                hashed_pw = stauth.Hasher().generate([new_password])[0]
                 config['credentials']['usernames'][new_username] = {
                     'email': new_email,
                     'name': new_username,
@@ -285,7 +285,7 @@ if st.session_state.mode == "login":
             preauthorized=config['preauthorized']
         )
 
-        name, authentication_status, username = authenticator.login("Login", "main")
+        name, authentication_status, username = authenticator.login("main", "Login")
 
 
         if authentication_status:
