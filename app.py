@@ -9,6 +9,8 @@ from google.cloud import firestore
 import uuid
 import json
 import streamlit_authenticator as stauth
+import yaml
+from yaml.loader import SafeLoader
 
 
 # ========== SETTINGS ==========
@@ -18,6 +20,7 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 MS_AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
 MS_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 REDIRECT_URI = "http://localhost:8501"  # Update for deployment!
+CONFIG_PATH = "config.yaml"
 
 # ========== CHAT FUNCTIONS (unchanged) ==========
 
@@ -76,6 +79,22 @@ def verify_firebase_token(token):
 
 def delete_chat(user_id, chat_id):
     db.collection('users').document(user_id).collection('chats').document(chat_id).delete()
+
+def load_config():
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, 'r') as file:
+            config = yaml.load(file, Loader=SafeLoader)
+    else:
+        config = {
+            'credentials': {'usernames': {}},
+            'cookie': {'expiry_days': 3, 'key': 'cookie_key', 'name': 'chatbot_cookie'},
+            'preauthorized': {'emails': []}
+        }
+    return config
+
+def save_config(config):
+    with open(CONFIG_PATH, 'w') as file:
+        yaml.dump(config, file)
 
 # ========== PARSE TOKEN FROM URL ==========
 query_params = st.query_params
@@ -231,25 +250,48 @@ if st.session_state.mode == "guest":
 
 if st.session_state.mode == "login":
 
-    # Pre-authorized users: Add your emails here
-    preauthorized_emails = ["youremail@gmail.com", "another@email.com"]
+    config = load_config()
 
-    authenticator = stauth.Authenticate(
-        credentials={"usernames": {}},
-        cookie_name="gemini_chatbot_cookie",
-        key="gemini_auth_key",
-        cookie_expiry_days=3,
-        preauthorized=preauthorized_emails,
-    )
+    menu = st.radio("Choose action", ["Login", "Sign Up"])
 
-    # Display login form
-    name, authentication_status, username = authenticator.login("main", "Login")
+    if menu == "Sign Up":
+        st.header("Create a New Account")
+        new_username = st.text_input("Choose a username")
+        new_password = st.text_input("Choose a password", type="password")
+        new_email = st.text_input("Your email (optional)")
 
-    if authentication_status:
-        st.success(f"Logged in as {username or name}!")
-        user_id = username or name  # email address, recommended for Firestore ID
+        if st.button("Sign Up"):
+            if not new_username or not new_password:
+                st.warning("Username and password required!")
+            elif new_username in config['credentials']['usernames']:
+                st.error("Username already exists!")
+            else:
+                hashed_pw = stauth.Hasher([new_password]).generate()[0]
+                config['credentials']['usernames'][new_username] = {
+                    'email': new_email,
+                    'name': new_username,
+                    'password': hashed_pw
+                }
+                save_config(config)
+                st.success("Account created! You can now log in.")
+                st.balloons()
 
-        # Initialize Firestore client if not already done
+    if menu == "Login":
+        authenticator = stauth.Authenticate(
+            credentials=config['credentials'],
+            cookie_name=config['cookie']['name'],
+            key=config['cookie']['key'],
+            cookie_expiry_days=config['cookie']['expiry_days'],
+            preauthorized=config['preauthorized']
+        )
+
+        name, authentication_status, username = authenticator.login(location="main", form_name="Login")
+
+        if authentication_status:
+            st.success(f"Logged in as {name}!")
+            user_id = username or name
+
+        # ========== FIRESTORE INIT ==========
         if not hasattr(st, 'firestore_db'):
             service_account_info = json.loads(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
             st.firestore_db = firestore.Client.from_service_account_info(service_account_info)
