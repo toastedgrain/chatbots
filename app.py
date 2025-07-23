@@ -283,12 +283,14 @@ if st.session_state.mode == "login":
             config['cookie']['expiry_days'],
         )
 
-        name, authentication_status, username = authenticator.login("main", "main") #ERROR too
-
-
-        if authentication_status:
-            st.success(f"Logged in as {name}!")
-            user_id = username or name
+        login_result = authenticator.login('Login', 'main')
+        if login_result is not None:
+            name, authentication_status, username = login_result
+            if authentication_status:
+                st.success(f"Logged in as {name}!")
+                user_id = username or name
+        else:
+            st.warning("Please log in.")
 
         # ========== FIRESTORE INIT ==========
         if not hasattr(st, 'firestore_db'):
