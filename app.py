@@ -12,6 +12,8 @@ import streamlit as st
 import streamlit_authenticator as stauth
 from streamlit_oauth import login_button
 
+#testing
+
 # When user sends or receives a message, update Firestore:
 def save_chat(user_id, chat_id, chat_title, messages):
     # If no title yet, fallback to first 30 chars of first message
