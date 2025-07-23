@@ -243,7 +243,10 @@ if st.session_state.mode == "login":
     )
 
     # Display login form
+    st.write("About to login")
     name, authentication_status, username = authenticator.login("Login", "main")
+    st.write("status:", authentication_status)
+
 
     if authentication_status:
         st.success(f"Logged in as {username or name}!")
