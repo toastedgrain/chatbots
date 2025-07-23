@@ -243,9 +243,11 @@ if st.session_state.mode == "login":
     )
 
     # Display login form
-    st.write("About to login")
-    name, authentication_status, username = authenticator.login("Login", location="main")
-    st.write("status:", authentication_status)
+    name, authentication_status, username = authenticator.login(
+    location="main",  # or "sidebar"
+    form_name="Login"
+)
+
 
 
     if authentication_status:
