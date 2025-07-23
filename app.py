@@ -235,7 +235,7 @@ if st.session_state.mode == "login":
     preauthorized_emails = ["youremail@gmail.com", "another@email.com"]
 
     authenticator = stauth.Authenticate(
-        credentials={},  # not needed for OAuth
+        credentials={"usernames": {}},
         cookie_name="gemini_chatbot_cookie",
         key="gemini_auth_key",
         cookie_expiry_days=3,
