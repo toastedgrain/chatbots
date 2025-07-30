@@ -18,6 +18,7 @@ import hashlib
 def save_chat(user_id, chat_id, chat_title, messages):
     if not chat_title and messages:
         chat_title = messages[0]["text"][:30]
+    db = get_db()
     chat_ref = db.collection('users').document(user_id).collection('chats').document(chat_id)
     chat_ref.set({
         'created_at': firestore.SERVER_TIMESTAMP,
@@ -26,6 +27,7 @@ def save_chat(user_id, chat_id, chat_title, messages):
     })
 
 def list_user_chats(user_id):
+    db = get_db()
     chats_ref = db.collection('users').document(user_id).collection('chats')
     chats = chats_ref.order_by('created_at', direction=firestore.Query.DESCENDING).stream()
     chat_list = []
@@ -69,6 +71,7 @@ def verify_firebase_token(token):
         return None
 
 def delete_chat(user_id, chat_id):
+    db = get_db()
     db.collection('users').document(user_id).collection('chats').document(chat_id).delete()
 
 def load_config():
@@ -88,6 +91,7 @@ def save_config(config):
         yaml.dump(config, file)
 
 def signup_user(username, password, email):
+    db = get_db()
     users_ref = db.collection('users')
     user_doc = users_ref.document(username)
     if user_doc.get().exists:
@@ -106,17 +110,19 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def authenticate_user(username, password):
+    db = get_db()
     user_doc = db.collection('users').document(username).get()
     if user_doc.exists:
         user_data = user_doc.to_dict()
         return hash_password(password) == user_data['password'], user_data
     return False, None
 
-def init_firestore():
-    global db
-    if db is None:
+def get_db():
+    if not hasattr(st.session_state, 'firestore_db'):
+        # Only initialize if not already present
         service_account_info = json.loads(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
-        db = firestore.Client.from_service_account_info(service_account_info)
+        st.session_state.firestore_db = firestore.Client.from_service_account_info(service_account_info)
+    return st.session_state.firestore_db
 
 # ========== PARSE TOKEN FROM URL ==========
 query_params = st.query_params
@@ -279,13 +285,11 @@ if st.session_state.mode == "login":
     menu = st.radio("Choose action", ["Login", "Sign Up"])
 
     if menu == "Sign Up":
-        
         st.header("Create a New Account")
         new_username = st.text_input("Choose a username")
         new_password = st.text_input("Choose a password", type="password")
         new_email = st.text_input("Your email (optional)")
-        init_firestore()
-        
+
         if st.button("Sign Up"):
             if not new_username or not new_password:
                 st.warning("Username and password required!")
@@ -298,11 +302,7 @@ if st.session_state.mode == "login":
         login_password = st.text_input("Password", type="password")
         if st.button("Login"):
             # Initialize Firestore if needed
-            if not hasattr(st, 'firestore_db'):
-                service_account_info = json.loads(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
-                st.firestore_db = firestore.Client.from_service_account_info(service_account_info)
-            db = st.firestore_db
-
+            db = get_db()
             success, user_data = authenticate_user(login_username, login_password)
             if success:
                 st.success(f"Logged in as {user_data['name']}!")
