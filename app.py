@@ -12,15 +12,6 @@ import streamlit_authenticator
 import yaml
 from yaml.loader import SafeLoader
 
-# ========== SETTINGS ==========
-OAUTH_PROVIDER = "google"  # "google" or "microsoft"
-GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-MS_AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
-MS_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
-REDIRECT_URI = "http://localhost:8501"  # Update for deployment!
-CONFIG_PATH = "config.yaml"
-
 # ========== CHAT FUNCTIONS (unchanged) ==========
 
 def save_chat(user_id, chat_id, chat_title, messages):
@@ -112,6 +103,8 @@ GOOGLE_CLIENT_ID = st.secrets["GOOGLE_CLIENT_ID"]
 GOOGLE_CLIENT_SECRET = st.secrets["GOOGLE_CLIENT_SECRET"]
 MS_CLIENT_ID = st.secrets["MS_CLIENT_ID"]
 MS_CLIENT_SECRET = st.secrets["MS_CLIENT_SECRET"]
+
+CONFIG_PATH = "config.yaml"
 
 # ========== MODE SELECTION ==========
 if "mode" not in st.session_state:
