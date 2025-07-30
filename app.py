@@ -4,13 +4,14 @@ import os
 import time
 from dotenv import load_dotenv
 import firebase_admin
-from firebase_admin import credentials, auth
+from firebase_admin import auth
 from google.cloud import firestore
 import uuid
 import json
 import streamlit_authenticator
 import yaml
 from yaml.loader import SafeLoader
+import hashlib
 
 # ========== CHAT FUNCTIONS (unchanged) ==========
 
@@ -85,6 +86,31 @@ def load_config():
 def save_config(config):
     with open(CONFIG_PATH, 'w') as file:
         yaml.dump(config, file)
+
+def signup_user(username, password, email):
+    users_ref = db.collection('users')
+    user_doc = users_ref.document(username)
+    if user_doc.get().exists:
+        st.error("Username already exists!")
+    else:
+        user_doc.set({
+            'username': username,
+            'password': hash_password(password),
+            'email': email,
+            'created_at': firestore.SERVER_TIMESTAMP,
+        })
+        st.success("Account created! You can now log in.")
+
+def hash_password(password):
+    # Simple hash with sha256; for real-world, use bcrypt or firebase's built-in auth!
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def authenticate_user(username, password):
+    user_doc = db.collection('users').document(username).get()
+    if user_doc.exists:
+        user_data = user_doc.to_dict()
+        return hash_password(password) == user_data['password'], user_data
+    return False, None
 
 # ========== PARSE TOKEN FROM URL ==========
 query_params = st.query_params
@@ -255,38 +281,27 @@ if st.session_state.mode == "login":
         if st.button("Sign Up"):
             if not new_username or not new_password:
                 st.warning("Username and password required!")
-            elif new_username in config['credentials']['usernames']:
-                st.error("Username already exists!")
             else:
-                hashed_pw = streamlit_authenticator.Hasher([new_password]).generate()
-                config['credentials']['usernames'][new_username] = {
-                    'email': new_email,
-                    'name': new_username,
-                    'password': hashed_pw
-                }
-                save_config(config)
-                st.success("Account created! You can now log in.")
-                st.balloons()
+                signup_user(new_username, new_password, new_email)
 
     if menu == "Login":
-        authenticator = streamlit_authenticator.Authenticate(
-            config['credentials'],
-            config['cookie']['name'],
-            config['cookie']['key'],
-            config['cookie']['expiry_days'],
-        )
-
-        login_result = authenticator.login('main', 'main')
-        if login_result is not None:
-            name, authentication_status, username = login_result
-            if authentication_status:
-                st.success(f"Logged in as {name}!")
-                user_id = username or name
-                # ========== FIRESTORE INIT ==========
+        st.title("Login")
+        login_username = st.text_input("Username")
+        login_password = st.text_input("Password", type="password")
+        if st.button("Login"):
+            # Initialize Firestore if needed
             if not hasattr(st, 'firestore_db'):
                 service_account_info = json.loads(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
                 st.firestore_db = firestore.Client.from_service_account_info(service_account_info)
             db = st.firestore_db
+
+            success, user_data = authenticate_user(login_username, login_password)
+            if success:
+                st.success(f"Logged in as {user_data['name']}!")
+                user_id = user_data['username']
+                # Now use user_id as needed
+            else:
+                st.error("Invalid username or password!")
 
             # ---- SIDEBAR: Past Chats, New Chat, Logout ----
             if "chat_id" not in st.session_state:
