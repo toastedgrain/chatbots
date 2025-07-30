@@ -112,6 +112,12 @@ def authenticate_user(username, password):
         return hash_password(password) == user_data['password'], user_data
     return False, None
 
+def init_firestore():
+    global db
+    if db is None:
+        service_account_info = json.loads(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
+        db = firestore.Client.from_service_account_info(service_account_info)
+
 # ========== PARSE TOKEN FROM URL ==========
 query_params = st.query_params
 id_token = None
@@ -273,11 +279,13 @@ if st.session_state.mode == "login":
     menu = st.radio("Choose action", ["Login", "Sign Up"])
 
     if menu == "Sign Up":
+        
         st.header("Create a New Account")
         new_username = st.text_input("Choose a username")
         new_password = st.text_input("Choose a password", type="password")
         new_email = st.text_input("Your email (optional)")
-
+        init_firestore()
+        
         if st.button("Sign Up"):
             if not new_username or not new_password:
                 st.warning("Username and password required!")
