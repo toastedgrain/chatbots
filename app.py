@@ -305,7 +305,7 @@ if st.session_state.mode == "login":
             db = get_db()
             success, user_data = authenticate_user(login_username, login_password)
             if success:
-                st.success(f"Logged in as {user_data['name']}!")
+                st.success(f"Logged in as {user_data['username']}!")
                 user_id = user_data['username']
                 # Now use user_id as needed
                 # ---- SIDEBAR: Past Chats, New Chat, Logout ----
