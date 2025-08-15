@@ -124,18 +124,6 @@ def get_db():
         st.session_state.firestore_db = firestore.Client.from_service_account_info(service_account_info)
     return st.session_state.firestore_db
 
-# ========== PARSE TOKEN FROM URL ==========
-query_params = st.query_params
-id_token = None
-if "token" in query_params:
-    token_value = query_params["token"]
-    if isinstance(token_value, list) and len(token_value) > 0:
-        id_token = token_value[0]
-    elif isinstance(token_value, str):
-        id_token = token_value
-    if id_token:
-        st.session_state.mode = "login"
-
 # ========== SECRETS / ENV ==========
 GOOGLE_CLIENT_ID = st.secrets["GOOGLE_CLIENT_ID"]
 GOOGLE_CLIENT_SECRET = st.secrets["GOOGLE_CLIENT_SECRET"]
@@ -143,6 +131,14 @@ MS_CLIENT_ID = st.secrets["MS_CLIENT_ID"]
 MS_CLIENT_SECRET = st.secrets["MS_CLIENT_SECRET"]
 
 CONFIG_PATH = "config.yaml"
+
+# session flags
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user_id" not in st.session_state:
+    st.session_state.user_id = None
+if "just_logged_in" not in st.session_state:
+    st.session_state.just_logged_in = False
 
 # ========== MODE SELECTION ==========
 if "mode" not in st.session_state:
@@ -300,77 +296,83 @@ if st.session_state.mode == "login":
         st.session_state.chat_title = ""
 
     # ========== WHEN NOT LOGGED IN: show radio + forms ==========
-    if not st.session_state.logged_in:
-        config = load_config()  # if you still need it for anything else
-        menu = st.radio("Choose action", ["Login", "Sign Up"])
+if not st.session_state.logged_in:
+    config = load_config()
+    menu = st.radio("Choose action", ["Login", "Sign Up"], key="auth_menu")
 
-        if menu == "Sign Up":
-            st.header("Create a New Account")
-            new_username = st.text_input("Choose a username")
-            new_password = st.text_input("Choose a password", type="password")
-            new_email    = st.text_input("Your email (optional)")
+    if menu == "Sign Up":
+        st.header("Create a New Account")
+        with st.form("signup_form", clear_on_submit=True):
+            new_username = st.text_input("Choose a username", key="su_user")
+            new_password = st.text_input("Choose a password", type="password", key="su_pass")
+            new_email    = st.text_input("Your email (optional)", key="su_email")
+            did_signup   = st.form_submit_button("Sign Up")
 
-            if st.button("Sign Up"):
-                if not new_username or not new_password:
-                    st.warning("Username and password required!")
-                else:
-                    # Firestore-backed signup (hashes password internally)
-                    db = get_db()
-                    signup_user(new_username, new_password, new_email)  # your function
-                    st.success("Account created! You can now log in.")
-                    st.balloons()
-
-        if menu == "Login":
-            st.title("Login")
-            login_username = st.text_input("Username")
-            login_password = st.text_input("Password", type="password")
-
-            if st.button("Login"):
+        if did_signup:
+            if not new_username or not new_password:
+                st.warning("Username and password required!")
+            else:
                 db = get_db()
-                success, user_data = authenticate_user(login_username, login_password)  # your function
-                if success:
-                    display_name = (
-                        user_data.get("name")
-                        or user_data.get("username")
-                        or user_data.get("email")
-                        or login_username
-                    )
-                    st.success(f"Logged in as {display_name}!")
+                signup_user(new_username, new_password, new_email)
+                st.success("Account created! You can now log in.")
+                st.balloons()
 
-                    # persist for this session
-                    st.session_state.logged_in = True
-                    st.session_state.user_id   = user_data.get("username") or login_username
+    if menu == "Login":
+        st.title("Login")
+        # Put login in a FORM so it only fires once and we don't render stray widgets.
+        with st.form("login_form", clear_on_submit=True):
+            login_username = st.text_input("Username", key="li_user")
+            login_password = st.text_input("Password", type="password", key="li_pass")
+            did_login      = st.form_submit_button("Login")
 
-                    # ensure a chat is ready
-                    if not st.session_state.chat_id:
-                        st.session_state.chat_id = str(uuid.uuid4())
-                    if not isinstance(st.session_state.chat_history, list):
-                        st.session_state.chat_history = []
+        if did_login:
+            db = get_db()
+            success, user_data = authenticate_user(login_username, login_password)
+            if success:
+                display_name = (
+                    user_data.get("name")
+                    or user_data.get("username")
+                    or user_data.get("email")
+                    or login_username
+                )
 
-                    st.rerun()
-                else:
-                    st.error("Invalid username or password!")
+                # persist for this session
+                st.session_state.logged_in = True
+                st.session_state.user_id   = user_data.get("username") or login_username
+                st.session_state.just_logged_in = display_name  # use as a one-time toast
 
-    # ========== WHEN LOGGED IN: hide forms and show app ==========
-    else:
-        user_id = st.session_state.user_id
-        db = get_db()
-
-        # Sidebar controls
-        with st.sidebar:
-            st.caption(f"Signed in as **{user_id}**")
-            if st.button("➕ New Chat"):
-                st.session_state.chat_history = []
-                st.session_state.chat_title = ""
-                st.session_state.chat_id = str(uuid.uuid4())
-                chat_id = st.session_state.chat_id
-                st.rerun()
-            if st.button("🚪 Logout"):
-                # clear session keys related to auth/chat
-                for k in ["logged_in", "user_id", "chat_id", "chat_history", "chat_title"]:
+                # (optional) clean up auth inputs so they don't linger in state
+                for k in ("li_user", "li_pass"):
                     if k in st.session_state:
                         del st.session_state[k]
+
+                # IMPORTANT: do not render success here; jump to the logged-in branch
                 st.rerun()
+            else:
+                st.error("Invalid username or password!")
+
+# ========== WHEN LOGGED IN: hide forms and show app ==========
+else:
+    user_id = st.session_state.user_id
+    db = get_db()
+
+    # One-time toast after rerun
+    if st.session_state.just_logged_in:
+        st.success(f"Logged in as {st.session_state.just_logged_in}!")
+        st.session_state.just_logged_in = False  # consume the flash
+
+    with st.sidebar:
+        st.caption(f"Signed in as **{user_id}**")
+        if st.button("➕ New Chat"):
+            st.session_state.chat_history = []
+            st.session_state.chat_title = ""
+            st.session_state.chat_id = str(uuid.uuid4())
+            st.rerun()
+        if st.button("🚪 Logout"):
+            for k in ["logged_in", "user_id", "chat_id", "chat_history", "chat_title"]:
+                if k in st.session_state:
+                    del st.session_state[k]
+            st.rerun()
 
         st.set_page_config(page_title="Gemini Chatbot", page_icon="🤖")
         st.title("🤖 Gemini Chatbot")
@@ -468,8 +470,6 @@ if st.session_state.mode == "login":
             st.session_state.chat_history.append({"role": "gemini", "text": bot_response})
         save_chat(user_id, st.session_state.chat_id, get_gemini_title(st.session_state.chat_history[:2]), st.session_state.chat_history)
         st.rerun()
-else:
-    st.warning("Please log in.")
     if st.button("⬅️ Back to Home"):
         st.session_state.mode = None
         st.session_state.chat_history = []
