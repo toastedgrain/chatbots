@@ -273,17 +273,16 @@ if st.session_state.mode == "guest":
     st.stop()
 
 # ========== LOGIN/AUTH/FIRESTORE MODE ==========
-
 if st.session_state.mode == "login":
 
-    # helpers
+    # helpers (scoped to login mode)
     def get_db():
         if not hasattr(st.session_state, "firestore_db"):
             svc = json.loads(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
             st.session_state.firestore_db = firestore.Client.from_service_account_info(svc)
         return st.session_state.firestore_db
 
-    # initialize flags
+    # initialize flags (once)
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
     if "user_id" not in st.session_state:
@@ -294,187 +293,193 @@ if st.session_state.mode == "login":
         st.session_state.chat_history = []
     if "chat_title" not in st.session_state:
         st.session_state.chat_title = ""
+    if "just_logged_in" not in st.session_state:
+        st.session_state.just_logged_in = False
 
-    # ========== WHEN NOT LOGGED IN: show radio + forms ==========
-if not st.session_state.logged_in:
-    config = load_config()
-    menu = st.radio("Choose action", ["Login", "Sign Up"], key="auth_menu")
+    # -------- NOT LOGGED IN: show auth only (no app UI) --------
+    if not st.session_state.logged_in:
+        config = load_config()
+        menu = st.radio("Choose action", ["Login", "Sign Up"], key="auth_menu")
 
-    if menu == "Sign Up":
-        st.header("Create a New Account")
-        with st.form("signup_form", clear_on_submit=True):
-            new_username = st.text_input("Choose a username", key="su_user")
-            new_password = st.text_input("Choose a password", type="password", key="su_pass")
-            new_email    = st.text_input("Your email (optional)", key="su_email")
-            did_signup   = st.form_submit_button("Sign Up")
+        if menu == "Sign Up":
+            st.header("Create a New Account")
+            with st.form("signup_form", clear_on_submit=True):
+                new_username = st.text_input("Choose a username", key="su_user")
+                new_password = st.text_input("Choose a password", type="password", key="su_pass")
+                new_email    = st.text_input("Your email (optional)", key="su_email")
+                did_signup   = st.form_submit_button("Sign Up")
 
-        if did_signup:
-            if not new_username or not new_password:
-                st.warning("Username and password required!")
-            else:
+            if did_signup:
+                if not new_username or not new_password:
+                    st.warning("Username and password required!")
+                else:
+                    db = get_db()
+                    signup_user(new_username, new_password, new_email)
+                    st.success("Account created! You can now log in.")
+                    st.balloons()
+
+        if menu == "Login":
+            st.title("Login")
+            with st.form("login_form", clear_on_submit=True):
+                login_username = st.text_input("Username", key="li_user")
+                login_password = st.text_input("Password", type="password", key="li_pass")
+                did_login      = st.form_submit_button("Login")
+
+            if did_login:
                 db = get_db()
-                signup_user(new_username, new_password, new_email)
-                st.success("Account created! You can now log in.")
-                st.balloons()
+                success, user_data = authenticate_user(login_username, login_password)
+                if success:
+                    display_name = (
+                        user_data.get("name")
+                        or user_data.get("username")
+                        or user_data.get("email")
+                        or login_username
+                    )
+                    st.session_state.logged_in = True
+                    st.session_state.user_id   = user_data.get("username") or login_username
+                    st.session_state.just_logged_in = display_name
+                    # clean inputs
+                    for k in ("li_user", "li_pass"):
+                        st.session_state.pop(k, None)
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password!")
 
-    if menu == "Login":
-        st.title("Login")
-        # Put login in a FORM so it only fires once and we don't render stray widgets.
-        with st.form("login_form", clear_on_submit=True):
-            login_username = st.text_input("Username", key="li_user")
-            login_password = st.text_input("Password", type="password", key="li_pass")
-            did_login      = st.form_submit_button("Login")
-
-        if did_login:
-            db = get_db()
-            success, user_data = authenticate_user(login_username, login_password)
-            if success:
-                display_name = (
-                    user_data.get("name")
-                    or user_data.get("username")
-                    or user_data.get("email")
-                    or login_username
-                )
-
-                # persist for this session
-                st.session_state.logged_in = True
-                st.session_state.user_id   = user_data.get("username") or login_username
-                st.session_state.just_logged_in = display_name  # use as a one-time toast
-
-                # (optional) clean up auth inputs so they don't linger in state
-                for k in ("li_user", "li_pass"):
-                    if k in st.session_state:
-                        del st.session_state[k]
-
-                # IMPORTANT: do not render success here; jump to the logged-in branch
-                st.rerun()
-            else:
-                st.error("Invalid username or password!")
-
-# ========== WHEN LOGGED IN: hide forms and show app ==========
-else:
-    user_id = st.session_state.user_id
-    db = get_db()
-
-    # One-time toast after rerun
-    if st.session_state.just_logged_in:
-        st.success(f"Logged in as {st.session_state.just_logged_in}!")
-        st.session_state.just_logged_in = False  # consume the flash
-
-    with st.sidebar:
-        st.caption(f"Signed in as **{user_id}**")
-        if st.button("➕ New Chat"):
+        # back to home (still not logged in)
+        if st.button("⬅️ Back to Home"):
+            st.session_state.mode = None
             st.session_state.chat_history = []
-            st.session_state.chat_title = ""
-            st.session_state.chat_id = str(uuid.uuid4())
-            st.rerun()
-        if st.button("🚪 Logout"):
-            for k in ["logged_in", "user_id", "chat_id", "chat_history", "chat_title"]:
-                if k in st.session_state:
-                    del st.session_state[k]
             st.rerun()
 
-        st.set_page_config(page_title="Gemini Chatbot", page_icon="🤖")
+        st.stop()  # prevent any app UI from rendering while not logged in
+
+    # -------- LOGGED IN: app UI only (no auth UI) --------
+    else:
+        user_id = st.session_state.user_id
+        db = get_db()
+
+        # one-time toast after rerun
+        if st.session_state.just_logged_in:
+            st.success(f"Logged in as {st.session_state.just_logged_in}!")
+            st.session_state.just_logged_in = False
+
+        # SIDEBAR (only sidebar items here)
+        with st.sidebar:
+            st.caption(f"Signed in as **{user_id}**")
+            if st.button("➕ New Chat"):
+                st.session_state.chat_history = []
+                st.session_state.chat_title = ""
+                st.session_state.chat_id = str(uuid.uuid4())
+                st.rerun()
+            if st.button("🚪 Logout"):
+                for k in ["logged_in", "user_id", "chat_id", "chat_history", "chat_title"]:
+                    st.session_state.pop(k, None)
+                st.rerun()
+
+        # MAIN AREA (title must NOT be in the sidebar)
         st.title("🤖 Gemini Chatbot")
 
-    if st.button("🗑️ Clear Conversation", type="primary"):
-        st.session_state.chat_history = []
+        if st.button("🗑️ Clear Conversation", type="primary"):
+            st.session_state.chat_history = []
 
-    with st.form(key="chat_form", clear_on_submit=True):
-        user_input = st.text_input("Type your message...", key="input_field")
-        submitted = st.form_submit_button("Send")
+        with st.form(key="chat_form", clear_on_submit=True):
+            user_input = st.text_input("Type your message...", key="input_field")
+            submitted = st.form_submit_button("Send")
 
-    for chat in st.session_state.chat_history:
-        if chat["role"] == "user":
-            st.markdown(
-                            f"""
-                            <div style="display: flex; justify-content: flex-end; align-items: flex-end; margin: 12px 0;">
-                                <div style="background: #0078fe; color: white; padding: 12px 18px; border-radius: 16px 16px 2px 16px; margin-left: 8px; max-width: 70%; box-shadow: 1px 2px 4px rgba(0,0,0,0.04); font-size: 1.1em; word-break: break-word;">
-                                    {chat['text']}
-                                </div>
-                                <div style="margin-left: 6px; font-size: 1.6em;">🧑</div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True)
-        else:
+        # render chat bubbles
+        for chat in st.session_state.chat_history:
+            if chat["role"] == "user":
                 st.markdown(
-                            f"""
-                            <div style="display: flex; justify-content: flex-start; align-items: flex-end; margin: 12px 0;">
-                                <div style="margin-right: 6px; font-size: 1.6em;">🤖</div>
-                                <div style="background: #f1f0f0; color: #222; padding: 12px 18px; border-radius: 16px 16px 16px 2px; margin-right: 8px; max-width: 70%; box-shadow: 1px 2px 4px rgba(0,0,0,0.04); font-size: 1.1em; word-break: break-word;">
-                                    {chat['text']}
-                            """,
-                    unsafe_allow_html=True)
+                    f"""
+                    <div style="display:flex; justify-content:flex-end; align-items:flex-end; margin:12px 0;">
+                        <div style="background:#0078fe; color:white; padding:12px 18px; border-radius:16px 16px 2px 16px; margin-left:8px; max-width:70%; box-shadow:1px 2px 4px rgba(0,0,0,0.04); font-size:1.1em; word-break:break-word;">
+                            {chat['text']}
+                        </div>
+                        <div style="margin-left:6px; font-size:1.6em;">🧑</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f"""
+                    <div style="display:flex; justify-content:flex-start; align-items:flex-end; margin:12px 0;">
+                        <div style="margin-right:6px; font-size:1.6em;">🤖</div>
+                        <div style="background:#f1f0f0; color:#222; padding:12px 18px; border-radius:16px 16px 16px 2px; margin-right:8px; max-width:70%; box-shadow:1px 2px 4px rgba(0,0,0,0.04); font-size:1.1em; word-break:break-word;">
+                            {chat['text']}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-    if submitted and user_input:
-        user_placeholder = st.empty()
-        partial_user_text = ""
-        for char in user_input:
-            partial_user_text += char
+        if submitted and user_input:
+            user_placeholder = st.empty()
+            partial_user_text = ""
+            for char in user_input:
+                partial_user_text += char
+                user_placeholder.markdown(
+                                f"""
+                                <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin:10px 0;'>
+                                    <div style='background:#0078fe; color:white; padding:12px 18px; border-radius:16px 16px 2px 16px; max-width:60%; min-height:38px; word-break:break-word;'>
+                                        {partial_user_text}<span style="color:#eee;">▌</span>
+                                    </div>
+                                    <div style='margin-left:8px;font-size:1.5em;'>🧑</div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
+                time.sleep(0.012)
             user_placeholder.markdown(
                             f"""
                             <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin:10px 0;'>
                                 <div style='background:#0078fe; color:white; padding:12px 18px; border-radius:16px 16px 2px 16px; max-width:60%; min-height:38px; word-break:break-word;'>
-                                    {partial_user_text}<span style="color:#eee;">▌</span>
+                                    {user_input}
                                 </div>
                                 <div style='margin-left:8px;font-size:1.5em;'>🧑</div>
                             </div>
                             """,
                             unsafe_allow_html=True
                         )
-            time.sleep(0.012)
-        user_placeholder.markdown(
-                        f"""
-                        <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin:10px 0;'>
-                            <div style='background:#0078fe; color:white; padding:12px 18px; border-radius:16px 16px 2px 16px; max-width:60%; min-height:38px; word-break:break-word;'>
-                                {user_input}
-                            </div>
-                            <div style='margin-left:8px;font-size:1.5em;'>🧑</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
 
-        st.session_state.chat_history.append({"role": "user", "text": user_input})
+            st.session_state.chat_history.append({"role": "user", "text": user_input})
 
-        bot_placeholder = st.empty()
-        with st.spinner("Gemini is thinking..."):
-            bot_response = get_gemini_response(user_input)
-            partial_bot_text = ""
-            for char in bot_response:
-                partial_bot_text += char
+            bot_placeholder = st.empty()
+            with st.spinner("Gemini is thinking..."):
+                bot_response = get_gemini_response(user_input)
+                partial_bot_text = ""
+                for char in bot_response:
+                    partial_bot_text += char
+                    bot_placeholder.markdown(
+                                    f"""
+                                    <div style='display:flex; justify-content:flex-start; align-items:flex-end; margin:10px 0;'>
+                                        <div style='margin-right:8px;font-size:1.5em;'>🤖</div>
+                                        <div style='background:#f1f0f0; color:#222; padding:12px 18px; border-radius:16px 16px 16px 2px; max-width:60%; min-height:38px; word-break:break-word;'>
+                                            {partial_bot_text}<span style="color:#888;">▌</span>
+                                        </div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                    time.sleep(0.012)
                 bot_placeholder.markdown(
                                 f"""
                                 <div style='display:flex; justify-content:flex-start; align-items:flex-end; margin:10px 0;'>
                                     <div style='margin-right:8px;font-size:1.5em;'>🤖</div>
                                     <div style='background:#f1f0f0; color:#222; padding:12px 18px; border-radius:16px 16px 16px 2px; max-width:60%; min-height:38px; word-break:break-word;'>
-                                        {partial_bot_text}<span style="color:#888;">▌</span>
+                                        {bot_response}
                                     </div>
                                 </div>
                                 """,
                                 unsafe_allow_html=True
                             )
-                time.sleep(0.012)
-            bot_placeholder.markdown(
-                            f"""
-                            <div style='display:flex; justify-content:flex-start; align-items:flex-end; margin:10px 0;'>
-                                <div style='margin-right:8px;font-size:1.5em;'>🤖</div>
-                                <div style='background:#f1f0f0; color:#222; padding:12px 18px; border-radius:16px 16px 16px 2px; max-width:60%; min-height:38px; word-break:break-word;'>
-                                    {bot_response}
-                                </div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True
-                        )
+        save_chat(
+            user_id,
+            st.session_state.chat_id,
+            get_gemini_title(st.session_state.chat_history[:2]),
+            st.session_state.chat_history,
+        )
 
-        st.session_state.chat_history.append({"role": "gemini", "text": bot_response})
-    save_chat(user_id, st.session_state.chat_id, get_gemini_title(st.session_state.chat_history[:2]), st.session_state.chat_history)
-    st.rerun()  
-      
-    if st.button("⬅️ Back to Home"):
-        st.session_state.mode = None
-        st.session_state.chat_history = []
-        st.rerun()
 
 st.markdown("<div style='height:15vh'></div>", unsafe_allow_html=True)
 st.stop()
