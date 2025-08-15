@@ -308,155 +308,154 @@ if st.session_state.mode == "login":
                 st.success(f"Logged in as {user_data['name']}!")
                 user_id = user_data['username']
                 # Now use user_id as needed
-            else:
-                st.error("Invalid username or password!")
+                # ---- SIDEBAR: Past Chats, New Chat, Logout ----
+                if "chat_id" not in st.session_state:
+                    st.session_state.chat_id = None
+                if "chat_history" not in st.session_state:
+                    st.session_state.chat_history = []
+                if "chat_title" not in st.session_state:
+                    st.session_state.chat_title = ""
 
-            # ---- SIDEBAR: Past Chats, New Chat, Logout ----
-            if "chat_id" not in st.session_state:
-                st.session_state.chat_id = None
-            if "chat_history" not in st.session_state:
-                st.session_state.chat_history = []
-            if "chat_title" not in st.session_state:
-                st.session_state.chat_title = ""
+                if st.sidebar.button("🚪 Logout"):
+                    for key in ["chat_id", "chat_history", "chat_title", "mode"]:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    st.experimental_rerun()
 
-            if st.sidebar.button("🚪 Logout"):
-                for key in ["chat_id", "chat_history", "chat_title", "mode"]:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                st.experimental_rerun()
+                st.sidebar.header("Past Chats")
+                if st.sidebar.button("➕ New Chat"):
+                    st.session_state.chat_history = []
+                    st.session_state.chat_id = str(uuid.uuid4())
+                    st.session_state.chat_title = ""
+                    st.rerun()
 
-            st.sidebar.header("Past Chats")
-            if st.sidebar.button("➕ New Chat"):
-                st.session_state.chat_history = []
-                st.session_state.chat_id = str(uuid.uuid4())
-                st.session_state.chat_title = ""
-                st.rerun()
+                chat_summaries = list_user_chats(user_id)
+                for chat in chat_summaries:
+                    chat_col, del_col = st.sidebar.columns([6, 1])
+                    with chat_col:
+                        if st.button(chat['title'], key=chat['id']):
+                            st.session_state.chat_id = chat['id']
+                            st.session_state.chat_history = chat['messages']
+                            st.session_state.chat_title = chat['title']
+                            st.rerun()
+                    with del_col:
+                        if st.button("🗑️", key="del_" + chat['id']):
+                            delete_chat(user_id, chat['id'])
+                            if st.session_state.get("chat_id") == chat['id']:
+                                st.session_state.chat_id = None
+                                st.session_state.chat_history = []
+                                st.session_state.chat_title = ""
+                            st.rerun()
 
-            chat_summaries = list_user_chats(user_id)
-            for chat in chat_summaries:
-                chat_col, del_col = st.sidebar.columns([6, 1])
-                with chat_col:
-                    if st.button(chat['title'], key=chat['id']):
-                        st.session_state.chat_id = chat['id']
-                        st.session_state.chat_history = chat['messages']
-                        st.session_state.chat_title = chat['title']
-                        st.rerun()
-                with del_col:
-                    if st.button("🗑️", key="del_" + chat['id']):
-                        delete_chat(user_id, chat['id'])
-                        if st.session_state.get("chat_id") == chat['id']:
-                            st.session_state.chat_id = None
-                            st.session_state.chat_history = []
-                            st.session_state.chat_title = ""
-                        st.rerun()
+                st.set_page_config(page_title="Gemini Chatbot", page_icon="🤖")
+                st.title("🤖 Gemini Chatbot")
 
-            st.set_page_config(page_title="Gemini Chatbot", page_icon="🤖")
-            st.title("🤖 Gemini Chatbot")
+                if st.button("🗑️ Clear Conversation", type="primary"):
+                    st.session_state.chat_history = []
 
-            if st.button("🗑️ Clear Conversation", type="primary"):
-                st.session_state.chat_history = []
+                with st.form(key="chat_form", clear_on_submit=True):
+                    user_input = st.text_input("Type your message...", key="input_field")
+                    submitted = st.form_submit_button("Send")
 
-            with st.form(key="chat_form", clear_on_submit=True):
-                user_input = st.text_input("Type your message...", key="input_field")
-                submitted = st.form_submit_button("Send")
-
-            for chat in st.session_state.chat_history:
-                if chat["role"] == "user":
-                    st.markdown(
-                        f"""
-                        <div style="display: flex; justify-content: flex-end; align-items: flex-end; margin: 12px 0;">
-                            <div style="background: #0078fe; color: white; padding: 12px 18px; border-radius: 16px 16px 2px 16px; margin-left: 8px; max-width: 70%; box-shadow: 1px 2px 4px rgba(0,0,0,0.04); font-size: 1.1em; word-break: break-word;">
-                                {chat['text']}
+                for chat in st.session_state.chat_history:
+                    if chat["role"] == "user":
+                        st.markdown(
+                            f"""
+                            <div style="display: flex; justify-content: flex-end; align-items: flex-end; margin: 12px 0;">
+                                <div style="background: #0078fe; color: white; padding: 12px 18px; border-radius: 16px 16px 2px 16px; margin-left: 8px; max-width: 70%; box-shadow: 1px 2px 4px rgba(0,0,0,0.04); font-size: 1.1em; word-break: break-word;">
+                                    {chat['text']}
+                                </div>
+                                <div style="margin-left: 6px; font-size: 1.6em;">🧑</div>
                             </div>
-                            <div style="margin-left: 6px; font-size: 1.6em;">🧑</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True)
-                else:
-                    st.markdown(
-                        f"""
-                        <div style="display: flex; justify-content: flex-start; align-items: flex-end; margin: 12px 0;">
-                            <div style="margin-right: 6px; font-size: 1.6em;">🤖</div>
-                            <div style="background: #f1f0f0; color: #222; padding: 12px 18px; border-radius: 16px 16px 16px 2px; margin-right: 8px; max-width: 70%; box-shadow: 1px 2px 4px rgba(0,0,0,0.04); font-size: 1.1em; word-break: break-word;">
-                                {chat['text']}
-                        """,
-                        unsafe_allow_html=True)
+                            """,
+                            unsafe_allow_html=True)
+                    else:
+                        st.markdown(
+                            f"""
+                            <div style="display: flex; justify-content: flex-start; align-items: flex-end; margin: 12px 0;">
+                                <div style="margin-right: 6px; font-size: 1.6em;">🤖</div>
+                                <div style="background: #f1f0f0; color: #222; padding: 12px 18px; border-radius: 16px 16px 16px 2px; margin-right: 8px; max-width: 70%; box-shadow: 1px 2px 4px rgba(0,0,0,0.04); font-size: 1.1em; word-break: break-word;">
+                                    {chat['text']}
+                            """,
+                            unsafe_allow_html=True)
 
-            if submitted and user_input:
-                user_placeholder = st.empty()
-                partial_user_text = ""
-                for char in user_input:
-                    partial_user_text += char
+                if submitted and user_input:
+                    user_placeholder = st.empty()
+                    partial_user_text = ""
+                    for char in user_input:
+                        partial_user_text += char
+                        user_placeholder.markdown(
+                            f"""
+                            <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin:10px 0;'>
+                                <div style='background:#0078fe; color:white; padding:12px 18px; border-radius:16px 16px 2px 16px; max-width:60%; min-height:38px; word-break:break-word;'>
+                                    {partial_user_text}<span style="color:#eee;">▌</span>
+                                </div>
+                                <div style='margin-left:8px;font-size:1.5em;'>🧑</div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                        time.sleep(0.012)
                     user_placeholder.markdown(
                         f"""
                         <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin:10px 0;'>
                             <div style='background:#0078fe; color:white; padding:12px 18px; border-radius:16px 16px 2px 16px; max-width:60%; min-height:38px; word-break:break-word;'>
-                                {partial_user_text}<span style="color:#eee;">▌</span>
+                                {user_input}
                             </div>
                             <div style='margin-left:8px;font-size:1.5em;'>🧑</div>
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
-                    time.sleep(0.012)
-                user_placeholder.markdown(
-                    f"""
-                    <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin:10px 0;'>
-                        <div style='background:#0078fe; color:white; padding:12px 18px; border-radius:16px 16px 2px 16px; max-width:60%; min-height:38px; word-break:break-word;'>
-                            {user_input}
-                        </div>
-                        <div style='margin-left:8px;font-size:1.5em;'>🧑</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
 
-                st.session_state.chat_history.append({"role": "user", "text": user_input})
+                    st.session_state.chat_history.append({"role": "user", "text": user_input})
 
-                bot_placeholder = st.empty()
-                with st.spinner("Gemini is thinking..."):
-                    bot_response = get_gemini_response(user_input)
-                    partial_bot_text = ""
-                    for char in bot_response:
-                        partial_bot_text += char
+                    bot_placeholder = st.empty()
+                    with st.spinner("Gemini is thinking..."):
+                        bot_response = get_gemini_response(user_input)
+                        partial_bot_text = ""
+                        for char in bot_response:
+                            partial_bot_text += char
+                            bot_placeholder.markdown(
+                                f"""
+                                <div style='display:flex; justify-content:flex-start; align-items:flex-end; margin:10px 0;'>
+                                    <div style='margin-right:8px;font-size:1.5em;'>🤖</div>
+                                    <div style='background:#f1f0f0; color:#222; padding:12px 18px; border-radius:16px 16px 16px 2px; max-width:60%; min-height:38px; word-break:break-word;'>
+                                        {partial_bot_text}<span style="color:#888;">▌</span>
+                                    </div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
+                            time.sleep(0.012)
                         bot_placeholder.markdown(
                             f"""
                             <div style='display:flex; justify-content:flex-start; align-items:flex-end; margin:10px 0;'>
                                 <div style='margin-right:8px;font-size:1.5em;'>🤖</div>
                                 <div style='background:#f1f0f0; color:#222; padding:12px 18px; border-radius:16px 16px 16px 2px; max-width:60%; min-height:38px; word-break:break-word;'>
-                                    {partial_bot_text}<span style="color:#888;">▌</span>
+                                    {bot_response}
                                 </div>
                             </div>
                             """,
                             unsafe_allow_html=True
                         )
-                        time.sleep(0.012)
-                    bot_placeholder.markdown(
-                        f"""
-                        <div style='display:flex; justify-content:flex-start; align-items:flex-end; margin:10px 0;'>
-                            <div style='margin-right:8px;font-size:1.5em;'>🤖</div>
-                            <div style='background:#f1f0f0; color:#222; padding:12px 18px; border-radius:16px 16px 16px 2px; max-width:60%; min-height:38px; word-break:break-word;'>
-                                {bot_response}
-                            </div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
 
-                st.session_state.chat_history.append({"role": "gemini", "text": bot_response})
+                    st.session_state.chat_history.append({"role": "gemini", "text": bot_response})
 
-                if not st.session_state.get("chat_id"):
-                    st.session_state.chat_id = str(uuid.uuid4())
-                chat_id = st.session_state.chat_id
+                    if not st.session_state.get("chat_id"):
+                        st.session_state.chat_id = str(uuid.uuid4())
+                    chat_id = st.session_state.chat_id
 
-                if (not st.session_state.get("chat_title") or st.session_state["chat_title"] == "Conversation with Gemini") and len(st.session_state.chat_history) >= 2:
-                    gemini_title = get_gemini_title(st.session_state.chat_history[:2])
-                    st.session_state["chat_title"] = gemini_title
-                else:
-                    gemini_title = st.session_state.get("chat_title", "")
+                    if (not st.session_state.get("chat_title") or st.session_state["chat_title"] == "Conversation with Gemini") and len(st.session_state.chat_history) >= 2:
+                        gemini_title = get_gemini_title(st.session_state.chat_history[:2])
+                        st.session_state["chat_title"] = gemini_title
+                    else:
+                        gemini_title = st.session_state.get("chat_title", "")
 
                 save_chat(user_id, chat_id, gemini_title, st.session_state.chat_history)
                 st.rerun()
+            else:
+                st.error("Invalid username or password!")
         else:
             st.warning("Please log in.")
             if st.button("⬅️ Back to Home"):
