@@ -365,7 +365,7 @@ if st.session_state.mode == "login":
 
         # SIDEBAR (only sidebar items here)
         with st.sidebar:
-            st.caption(f"Signed in as **{user_id}**")
+            st.subheader(f"Signed in as **{user_id}**")
             if st.button("➕ New Chat"):
                 st.session_state.chat_history = []
                 st.session_state.chat_title = ""
