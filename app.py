@@ -363,19 +363,6 @@ if st.session_state.mode == "login":
             st.success(f"Logged in as {st.session_state.just_logged_in}!")
             st.session_state.just_logged_in = False
 
-        # SIDEBAR (only sidebar items here)
-        with st.sidebar:
-            st.subheader(f"Signed in as **{user_id}**")
-            if st.button("➕ New Chat"):
-                st.session_state.chat_history = []
-                st.session_state.chat_title = ""
-                st.session_state.chat_id = str(uuid.uuid4())
-                st.rerun()
-            if st.button("🚪 Logout"):
-                for k in ["logged_in", "user_id", "chat_id", "chat_history", "chat_title"]:
-                    st.session_state.pop(k, None)
-                st.rerun()
-
         # MAIN AREA (title must NOT be in the sidebar)
         st.title("🤖 Gemini Chatbot")
 
@@ -412,7 +399,19 @@ if st.session_state.mode == "login":
                     """,
                     unsafe_allow_html=True,
                 )
-
+        # SIDEBAR (only sidebar items here)
+        with st.sidebar:
+            st.subheader(f"Signed in as **{user_id}**")
+            if st.button("➕ New Chat"):
+                st.session_state.chat_history = []
+                st.session_state.chat_title = ""
+                st.session_state.chat_id = str(uuid.uuid4())
+                st.rerun()
+            if st.button("🚪 Logout"):
+                for k in ["logged_in", "user_id", "chat_id", "chat_history", "chat_title"]:
+                    st.session_state.pop(k, None)
+                st.rerun()
+                
         if submitted and user_input:
             user_placeholder = st.empty()
             partial_user_text = ""
