@@ -466,14 +466,7 @@ if st.session_state.mode == "login":
                         )
 
             st.session_state.chat_history.append({"role": "gemini", "text": bot_response})
-
-            if (not st.session_state.get("chat_title") or st.session_state["chat_title"] == "Conversation with Gemini") and len(st.session_state.chat_history) >= 2:
-                gemini_title = get_gemini_title(st.session_state.chat_history[:2])
-                st.session_state["chat_title"] = gemini_title
-            else:
-                gemini_title = st.session_state.get("chat_title", "")
-
-        save_chat(user_id, st.session_state.chat_id, gemini_title, st.session_state.chat_history)
+        save_chat(user_id, st.session_state.chat_id, get_gemini_title(st.session_state.chat_history[:2]), st.session_state.chat_history)
         st.rerun()
 else:
     st.warning("Please log in.")
