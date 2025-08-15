@@ -280,86 +280,110 @@ if st.session_state.mode == "guest":
 
 if st.session_state.mode == "login":
 
-    config = load_config()
+    # helpers
+    def get_db():
+        if not hasattr(st.session_state, "firestore_db"):
+            svc = json.loads(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
+            st.session_state.firestore_db = firestore.Client.from_service_account_info(svc)
+        return st.session_state.firestore_db
 
-    menu = st.radio("Choose action", ["Login", "Sign Up"])
+    # initialize flags
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+    if "user_id" not in st.session_state:
+        st.session_state.user_id = None
+    if "chat_id" not in st.session_state:
+        st.session_state.chat_id = str(uuid.uuid4())
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+    if "chat_title" not in st.session_state:
+        st.session_state.chat_title = ""
 
-    if menu == "Sign Up":
-        st.header("Create a New Account")
-        new_username = st.text_input("Choose a username")
-        new_password = st.text_input("Choose a password", type="password")
-        new_email = st.text_input("Your email (optional)")
+    # ========== WHEN NOT LOGGED IN: show radio + forms ==========
+    if not st.session_state.logged_in:
+        config = load_config()  # if you still need it for anything else
+        menu = st.radio("Choose action", ["Login", "Sign Up"])
 
-        if st.button("Sign Up"):
-            if not new_username or not new_password:
-                st.warning("Username and password required!")
-            else:
-                signup_user(new_username, new_password, new_email)
+        if menu == "Sign Up":
+            st.header("Create a New Account")
+            new_username = st.text_input("Choose a username")
+            new_password = st.text_input("Choose a password", type="password")
+            new_email    = st.text_input("Your email (optional)")
 
-    if menu == "Login":
-        st.title("Login")
-        login_username = st.text_input("Username")
-        login_password = st.text_input("Password", type="password")
-        if st.button("Login"):
-            # Initialize Firestore if needed
-            db = get_db()
-            success, user_data = authenticate_user(login_username, login_password)
-            if success:
-                st.success(f"Logged in as {user_data['username']}!")
-                user_id = user_data['username']
-                # Now use user_id as needed
-                # ---- SIDEBAR: Past Chats, New Chat, Logout ----
-                if "chat_id" not in st.session_state:
-                    st.session_state.chat_id = None
-                if "chat_history" not in st.session_state:
-                    st.session_state.chat_history = []
-                if "chat_title" not in st.session_state:
-                    st.session_state.chat_title = ""
+            if st.button("Sign Up"):
+                if not new_username or not new_password:
+                    st.warning("Username and password required!")
+                else:
+                    # Firestore-backed signup (hashes password internally)
+                    db = get_db()
+                    signup_user(new_username, new_password, new_email)  # your function
+                    st.success("Account created! You can now log in.")
+                    st.balloons()
 
-                if st.sidebar.button("🚪 Logout"):
-                    for key in ["chat_id", "chat_history", "chat_title", "mode"]:
-                        if key in st.session_state:
-                            del st.session_state[key]
-                    st.experimental_rerun()
+        if menu == "Login":
+            st.title("Login")
+            login_username = st.text_input("Username")
+            login_password = st.text_input("Password", type="password")
 
-                st.sidebar.header("Past Chats")
-                if st.sidebar.button("➕ New Chat"):
-                    st.session_state.chat_history = []
-                    st.session_state.chat_id = str(uuid.uuid4())
-                    st.session_state.chat_title = ""
+            if st.button("Login"):
+                db = get_db()
+                success, user_data = authenticate_user(login_username, login_password)  # your function
+                if success:
+                    display_name = (
+                        user_data.get("name")
+                        or user_data.get("username")
+                        or user_data.get("email")
+                        or login_username
+                    )
+                    st.success(f"Logged in as {display_name}!")
+
+                    # persist for this session
+                    st.session_state.logged_in = True
+                    st.session_state.user_id   = user_data.get("username") or login_username
+
+                    # ensure a chat is ready
+                    if not st.session_state.chat_id:
+                        st.session_state.chat_id = str(uuid.uuid4())
+                    if not isinstance(st.session_state.chat_history, list):
+                        st.session_state.chat_history = []
+
                     st.rerun()
+                else:
+                    st.error("Invalid username or password!")
 
-                chat_summaries = list_user_chats(user_id)
-                for chat in chat_summaries:
-                    chat_col, del_col = st.sidebar.columns([6, 1])
-                    with chat_col:
-                        if st.button(chat['title'], key=chat['id']):
-                            st.session_state.chat_id = chat['id']
-                            st.session_state.chat_history = chat['messages']
-                            st.session_state.chat_title = chat['title']
-                            st.rerun()
-                    with del_col:
-                        if st.button("🗑️", key="del_" + chat['id']):
-                            delete_chat(user_id, chat['id'])
-                            if st.session_state.get("chat_id") == chat['id']:
-                                st.session_state.chat_id = None
-                                st.session_state.chat_history = []
-                                st.session_state.chat_title = ""
-                            st.rerun()
+    # ========== WHEN LOGGED IN: hide forms and show app ==========
+    else:
+        user_id = st.session_state.user_id
+        db = get_db()
 
-                st.set_page_config(page_title="Gemini Chatbot", page_icon="🤖")
-                st.title("🤖 Gemini Chatbot")
+        # Sidebar controls
+        with st.sidebar:
+            st.caption(f"Signed in as **{user_id}**")
+            if st.button("➕ New Chat"):
+                st.session_state.chat_history = []
+                st.session_state.chat_title = ""
+                st.session_state.chat_id = str(uuid.uuid4())
+                st.rerun()
+            if st.button("🚪 Logout"):
+                # clear session keys related to auth/chat
+                for k in ["logged_in", "user_id", "chat_id", "chat_history", "chat_title"]:
+                    if k in st.session_state:
+                        del st.session_state[k]
+                st.rerun()
 
-                if st.button("🗑️ Clear Conversation", type="primary"):
-                    st.session_state.chat_history = []
+        st.set_page_config(page_title="Gemini Chatbot", page_icon="🤖")
+        st.title("🤖 Gemini Chatbot")
 
-                with st.form(key="chat_form", clear_on_submit=True):
-                    user_input = st.text_input("Type your message...", key="input_field")
-                    submitted = st.form_submit_button("Send")
+        if st.button("🗑️ Clear Conversation", type="primary"):
+            st.session_state.chat_history = []
 
-                for chat in st.session_state.chat_history:
-                    if chat["role"] == "user":
-                        st.markdown(
+        with st.form(key="chat_form", clear_on_submit=True):
+            user_input = st.text_input("Type your message...", key="input_field")
+            submitted = st.form_submit_button("Send")
+
+        for chat in st.session_state.chat_history:
+            if chat["role"] == "user":
+                st.markdown(
                             f"""
                             <div style="display: flex; justify-content: flex-end; align-items: flex-end; margin: 12px 0;">
                                 <div style="background: #0078fe; color: white; padding: 12px 18px; border-radius: 16px 16px 2px 16px; margin-left: 8px; max-width: 70%; box-shadow: 1px 2px 4px rgba(0,0,0,0.04); font-size: 1.1em; word-break: break-word;">
@@ -369,22 +393,22 @@ if st.session_state.mode == "login":
                             </div>
                             """,
                             unsafe_allow_html=True)
-                    else:
-                        st.markdown(
+            else:
+                st.markdown(
                             f"""
                             <div style="display: flex; justify-content: flex-start; align-items: flex-end; margin: 12px 0;">
                                 <div style="margin-right: 6px; font-size: 1.6em;">🤖</div>
                                 <div style="background: #f1f0f0; color: #222; padding: 12px 18px; border-radius: 16px 16px 16px 2px; margin-right: 8px; max-width: 70%; box-shadow: 1px 2px 4px rgba(0,0,0,0.04); font-size: 1.1em; word-break: break-word;">
                                     {chat['text']}
                             """,
-                            unsafe_allow_html=True)
+                    unsafe_allow_html=True)
 
-                if submitted and user_input:
-                    user_placeholder = st.empty()
-                    partial_user_text = ""
-                    for char in user_input:
-                        partial_user_text += char
-                        user_placeholder.markdown(
+        if submitted and user_input:
+            user_placeholder = st.empty()
+            partial_user_text = ""
+            for char in user_input:
+                partial_user_text += char
+                user_placeholder.markdown(
                             f"""
                             <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin:10px 0;'>
                                 <div style='background:#0078fe; color:white; padding:12px 18px; border-radius:16px 16px 2px 16px; max-width:60%; min-height:38px; word-break:break-word;'>
@@ -395,8 +419,8 @@ if st.session_state.mode == "login":
                             """,
                             unsafe_allow_html=True
                         )
-                        time.sleep(0.012)
-                    user_placeholder.markdown(
+                time.sleep(0.012)
+            user_placeholder.markdown(
                         f"""
                         <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin:10px 0;'>
                             <div style='background:#0078fe; color:white; padding:12px 18px; border-radius:16px 16px 2px 16px; max-width:60%; min-height:38px; word-break:break-word;'>
@@ -408,15 +432,15 @@ if st.session_state.mode == "login":
                         unsafe_allow_html=True
                     )
 
-                    st.session_state.chat_history.append({"role": "user", "text": user_input})
+            st.session_state.chat_history.append({"role": "user", "text": user_input})
 
-                    bot_placeholder = st.empty()
-                    with st.spinner("Gemini is thinking..."):
-                        bot_response = get_gemini_response(user_input)
-                        partial_bot_text = ""
-                        for char in bot_response:
-                            partial_bot_text += char
-                            bot_placeholder.markdown(
+            bot_placeholder = st.empty()
+            with st.spinner("Gemini is thinking..."):
+                bot_response = get_gemini_response(user_input)
+                partial_bot_text = ""
+                for char in bot_response:
+                    partial_bot_text += char
+                    bot_placeholder.markdown(
                                 f"""
                                 <div style='display:flex; justify-content:flex-start; align-items:flex-end; margin:10px 0;'>
                                     <div style='margin-right:8px;font-size:1.5em;'>🤖</div>
@@ -427,8 +451,8 @@ if st.session_state.mode == "login":
                                 """,
                                 unsafe_allow_html=True
                             )
-                            time.sleep(0.012)
-                        bot_placeholder.markdown(
+                    time.sleep(0.012)
+                bot_placeholder.markdown(
                             f"""
                             <div style='display:flex; justify-content:flex-start; align-items:flex-end; margin:10px 0;'>
                                 <div style='margin-right:8px;font-size:1.5em;'>🤖</div>
@@ -440,30 +464,26 @@ if st.session_state.mode == "login":
                             unsafe_allow_html=True
                         )
 
-                    st.session_state.chat_history.append({"role": "gemini", "text": bot_response})
+            st.session_state.chat_history.append({"role": "gemini", "text": bot_response})
 
-                    if not st.session_state.get("chat_id"):
-                        st.session_state.chat_id = str(uuid.uuid4())
-                    chat_id = st.session_state.chat_id
+            if not st.session_state.get("chat_id"):
+                st.session_state.chat_id = str(uuid.uuid4())
+            chat_id = st.session_state.chat_id
 
-                    if (not st.session_state.get("chat_title") or st.session_state["chat_title"] == "Conversation with Gemini") and len(st.session_state.chat_history) >= 2:
-                        gemini_title = get_gemini_title(st.session_state.chat_history[:2])
-                        st.session_state["chat_title"] = gemini_title
-                    else:
-                        gemini_title = st.session_state.get("chat_title", "")
-
-                save_chat(user_id, chat_id, gemini_title, st.session_state.chat_history)
-                st.rerun()
+            if (not st.session_state.get("chat_title") or st.session_state["chat_title"] == "Conversation with Gemini") and len(st.session_state.chat_history) >= 2:
+                gemini_title = get_gemini_title(st.session_state.chat_history[:2])
+                st.session_state["chat_title"] = gemini_title
             else:
-                st.error("Invalid username or password!")
-        else:
-            st.warning("Please log in.")
-            if st.button("⬅️ Back to Home"):
-                st.session_state.mode = None
-                st.session_state.chat_history = []
-                st.rerun()
+                gemini_title = st.session_state.get("chat_title", "")
 
-        st.markdown("<div style='height:15vh'></div>", unsafe_allow_html=True)
-        st.stop()
+        save_chat(user_id, chat_id, gemini_title, st.session_state.chat_history)
+        st.rerun()
+else:
+    st.warning("Please log in.")
+    if st.button("⬅️ Back to Home"):
+        st.session_state.mode = None
+        st.session_state.chat_history = []
+        st.rerun()
 
 st.markdown("<div style='height:15vh'></div>", unsafe_allow_html=True)
+st.stop()
