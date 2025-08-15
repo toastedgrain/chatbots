@@ -377,16 +377,16 @@ else:
         st.set_page_config(page_title="Gemini Chatbot", page_icon="🤖")
         st.title("🤖 Gemini Chatbot")
 
-        if st.button("🗑️ Clear Conversation", type="primary"):
-            st.session_state.chat_history = []
+    if st.button("🗑️ Clear Conversation", type="primary"):
+        st.session_state.chat_history = []
 
-        with st.form(key="chat_form", clear_on_submit=True):
-            user_input = st.text_input("Type your message...", key="input_field")
-            submitted = st.form_submit_button("Send")
+    with st.form(key="chat_form", clear_on_submit=True):
+        user_input = st.text_input("Type your message...", key="input_field")
+        submitted = st.form_submit_button("Send")
 
-        for chat in st.session_state.chat_history:
-            if chat["role"] == "user":
-                st.markdown(
+    for chat in st.session_state.chat_history:
+        if chat["role"] == "user":
+            st.markdown(
                             f"""
                             <div style="display: flex; justify-content: flex-end; align-items: flex-end; margin: 12px 0;">
                                 <div style="background: #0078fe; color: white; padding: 12px 18px; border-radius: 16px 16px 2px 16px; margin-left: 8px; max-width: 70%; box-shadow: 1px 2px 4px rgba(0,0,0,0.04); font-size: 1.1em; word-break: break-word;">
@@ -396,7 +396,7 @@ else:
                             </div>
                             """,
                             unsafe_allow_html=True)
-            else:
+        else:
                 st.markdown(
                             f"""
                             <div style="display: flex; justify-content: flex-start; align-items: flex-end; margin: 12px 0;">
@@ -406,12 +406,12 @@ else:
                             """,
                     unsafe_allow_html=True)
 
-        if submitted and user_input:
-            user_placeholder = st.empty()
-            partial_user_text = ""
-            for char in user_input:
-                partial_user_text += char
-                user_placeholder.markdown(
+    if submitted and user_input:
+        user_placeholder = st.empty()
+        partial_user_text = ""
+        for char in user_input:
+            partial_user_text += char
+            user_placeholder.markdown(
                             f"""
                             <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin:10px 0;'>
                                 <div style='background:#0078fe; color:white; padding:12px 18px; border-radius:16px 16px 2px 16px; max-width:60%; min-height:38px; word-break:break-word;'>
@@ -422,8 +422,8 @@ else:
                             """,
                             unsafe_allow_html=True
                         )
-                time.sleep(0.012)
-            user_placeholder.markdown(
+            time.sleep(0.012)
+        user_placeholder.markdown(
                         f"""
                         <div style='display:flex; justify-content:flex-end; align-items:flex-end; margin:10px 0;'>
                             <div style='background:#0078fe; color:white; padding:12px 18px; border-radius:16px 16px 2px 16px; max-width:60%; min-height:38px; word-break:break-word;'>
@@ -435,15 +435,15 @@ else:
                         unsafe_allow_html=True
                     )
 
-            st.session_state.chat_history.append({"role": "user", "text": user_input})
+        st.session_state.chat_history.append({"role": "user", "text": user_input})
 
-            bot_placeholder = st.empty()
-            with st.spinner("Gemini is thinking..."):
-                bot_response = get_gemini_response(user_input)
-                partial_bot_text = ""
-                for char in bot_response:
-                    partial_bot_text += char
-                    bot_placeholder.markdown(
+        bot_placeholder = st.empty()
+        with st.spinner("Gemini is thinking..."):
+            bot_response = get_gemini_response(user_input)
+            partial_bot_text = ""
+            for char in bot_response:
+                partial_bot_text += char
+                bot_placeholder.markdown(
                                 f"""
                                 <div style='display:flex; justify-content:flex-start; align-items:flex-end; margin:10px 0;'>
                                     <div style='margin-right:8px;font-size:1.5em;'>🤖</div>
@@ -454,8 +454,8 @@ else:
                                 """,
                                 unsafe_allow_html=True
                             )
-                    time.sleep(0.012)
-                bot_placeholder.markdown(
+                time.sleep(0.012)
+            bot_placeholder.markdown(
                             f"""
                             <div style='display:flex; justify-content:flex-start; align-items:flex-end; margin:10px 0;'>
                                 <div style='margin-right:8px;font-size:1.5em;'>🤖</div>
@@ -467,9 +467,10 @@ else:
                             unsafe_allow_html=True
                         )
 
-            st.session_state.chat_history.append({"role": "gemini", "text": bot_response})
-        save_chat(user_id, st.session_state.chat_id, get_gemini_title(st.session_state.chat_history[:2]), st.session_state.chat_history)
-        st.rerun()
+        st.session_state.chat_history.append({"role": "gemini", "text": bot_response})
+    save_chat(user_id, st.session_state.chat_id, get_gemini_title(st.session_state.chat_history[:2]), st.session_state.chat_history)
+    st.rerun()  
+      
     if st.button("⬅️ Back to Home"):
         st.session_state.mode = None
         st.session_state.chat_history = []
