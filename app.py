@@ -411,7 +411,7 @@ if st.session_state.mode == "login":
                 for k in ["logged_in", "user_id", "chat_id", "chat_history", "chat_title"]:
                     st.session_state.pop(k, None)
                 st.rerun()
-                
+
         if submitted and user_input:
             user_placeholder = st.empty()
             partial_user_text = ""
@@ -436,7 +436,6 @@ if st.session_state.mode == "login":
                                     {user_input}
                                 </div>
                                 <div style='margin-left:8px;font-size:1.5em;'>🧑</div>
-                            </div>
                             """,
                             unsafe_allow_html=True
                         )
@@ -455,8 +454,6 @@ if st.session_state.mode == "login":
                                         <div style='margin-right:8px;font-size:1.5em;'>🤖</div>
                                         <div style='background:#f1f0f0; color:#222; padding:12px 18px; border-radius:16px 16px 16px 2px; max-width:60%; min-height:38px; word-break:break-word;'>
                                             {partial_bot_text}<span style="color:#888;">▌</span>
-                                        </div>
-                                    </div>
                                     """,
                                     unsafe_allow_html=True
                                 )
@@ -467,8 +464,6 @@ if st.session_state.mode == "login":
                                     <div style='margin-right:8px;font-size:1.5em;'>🤖</div>
                                     <div style='background:#f1f0f0; color:#222; padding:12px 18px; border-radius:16px 16px 16px 2px; max-width:60%; min-height:38px; word-break:break-word;'>
                                         {bot_response}
-                                    </div>
-                                </div>
                                 """,
                                 unsafe_allow_html=True
                             )
